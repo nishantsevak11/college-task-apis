@@ -20,22 +20,26 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id)
       .populate('owner', 'firstName lastName email')
-      .populate('members.user', 'firstName lastName email');
+      .populate('members.user', 'firstName lastName email')
+      .lean();
     
     if (!company) {
       return res.status(404).json({ message: 'Company not found' });
     }
 
+    // Check if user is a member or owner
     const isMember = company.members.some(member => 
-      member.user.toString() === req.user._id.toString()
+      member.user._id.toString() === req.user._id.toString()
     );
+    const isOwner = company.owner._id.toString() === req.user._id.toString();
 
-    if (!isMember && company.owner.toString() !== req.user._id.toString()) {
+    if (!isMember && !isOwner) {
       return res.status(403).json({ message: 'Unauthorized access' });
     }
 
     res.json(company);
   } catch (error) {
+    console.error('Error fetching company:', error);
     res.status(500).json({ message: 'Error fetching company' });
   }
 });

@@ -19,4 +19,6 @@ router.post('/reset-password', [
   body('email').isEmail()
 ], authController.resetPassword);
 
+router.get('/pending-invitations', authController.getPendingInvitations);
+
 module.exports = router;
