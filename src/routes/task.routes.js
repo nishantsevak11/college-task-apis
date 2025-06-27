@@ -57,7 +57,7 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Create task
+// Create task (Corrected: Only company owner can create)
 router.post('/', authenticate, async (req, res) => {
   try {
     const { title, description, companyId, assignedTo } = req.body;
@@ -67,12 +67,10 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Company not found' });
     }
 
-    const isMember = company.members.some(member => 
-      member.user.toString() === req.user._id.toString()
-    );
-
-    if (!isMember && company.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized access' });
+    // *** CORRECTED LOGIC ***
+    // Only the company owner can create a task.
+    if (company.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Unauthorized: Only the company owner can create tasks.' });
     }
 
     const task = new Task({
@@ -106,12 +104,14 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     const company = await Company.findById(task.company);
-    const isMember = company.members.some(member => 
-      member.user.toString() === req.user._id.toString()
-    );
-
-    if (!isMember && company.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized access' });
+    if (!company) {
+        return res.status(404).json({ message: 'Associated company not found' });
+    }
+    
+    // *** CORRECTED LOGIC ***
+    // Only the company owner can update the task.
+    if (company.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Unauthorized: Only the company owner can update tasks.' });
     }
 
     task.title = title;
@@ -172,16 +172,21 @@ router.delete('/:id', authenticate, async (req, res) => {
     }
 
     const company = await Company.findById(task.company);
-    const isMember = company.members.some(member => 
-      member.user.toString() === req.user._id.toString()
-    );
+    if (!company) {
+        return res.status(404).json({ message: 'Associated company not found' });
+    }
 
-    if (!isMember && company.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized access' });
+    // *** CORRECTED LOGIC ***
+    // Only the company owner can delete the task.
+    if (company.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Unauthorized: Only the company owner can delete tasks.' });
     }
 
     await task.deleteOne();
-    res.json({ message: 'Task deleted successfully' });
+    // Also delete associated comments
+    await Comment.deleteMany({ task: req.params.id });
+
+    res.json({ message: 'Task and associated comments deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting task' });
   }

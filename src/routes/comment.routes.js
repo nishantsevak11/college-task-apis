@@ -102,14 +102,33 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found' });
     }
+    
+    // To check for owner, we need the company context
+    const task = await Task.findById(comment.task);
+    if (!task) {
+         // This case might happen if the task was deleted but the comment wasn't
+         await comment.deleteOne();
+         return res.json({ message: 'Comment for a non-existent task deleted successfully' });
+    }
 
-    if (comment.author.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Unauthorized access' });
+    const company = await Company.findById(task.company);
+    if(!company){
+        return res.status(404).json({ message: 'Associated company not found.' });
+    }
+
+    const isAuthor = comment.author.toString() === req.user._id.toString();
+    const isOwner = company.owner.toString() === req.user._id.toString();
+
+    // *** CORRECTED LOGIC ***
+    // Allow deletion if the user is the author OR the company owner.
+    if (!isAuthor && !isOwner) {
+      return res.status(403).json({ message: 'Unauthorized: You can only delete your own comments or you must be the company owner.' });
     }
 
     await comment.deleteOne();
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {
+    console.error("Delete comment error:", error);
     res.status(500).json({ message: 'Error deleting comment' });
   }
 });
